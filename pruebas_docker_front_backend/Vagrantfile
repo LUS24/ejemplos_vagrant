@@ -1,0 +1,56 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+
+$scriptDocker = <<-SCRIPT
+curl -sSL https://get.docker.com/ | sh
+# Add vagrant user to the docker group
+usermod -a -G docker vagrant
+diff -q /etc/systemd/system/multi-user.target.wants/docker.service /home/vagrant/docker.service || cp /home/vagrant/docker.service /etc/systemd/system/multi-user.target.wants/docker.service
+systemctl daemon-reload
+systemctl restart docker.service
+SCRIPT
+
+
+$scriptDockerCompose = <<-SCRIPT
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/download/v2.2.2/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+docker compose version
+SCRIPT
+
+# TODO instalar docker-compose
+
+Vagrant.configure("2") do |config|
+  
+  config.vm.box = "ubuntu/focal64"
+  config.vm.network "private_network", ip: "192.168.100.2"
+  config.vm.synced_folder "./docker", "/home/vagrant/docker"
+  
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+  end
+
+  config.vm.provision "file", source: "docker.service", destination: "/home/vagrant/docker.service"
+  config.vm.provision :shell, :inline => $scriptDocker
+  config.vm.provision :shell, :inline => $scriptDockerCompose
+
+  # config.vm.provision "shell",
+  #   inline: "docker -H 192.168.100.2:2375 run -d -v /home/vagrant/docker/html:/usr/share/nginx/html -p 8080:80 nginx:alpine"
+  
+end
+
+# Pasos para correr un contenedor a mano
+
+# Si se usa inline: "docker ... etc." no es necesario realizar esto a mano
+
+# 1) vagrant up
+# 2) vagrant ssh
+# 3.1) Opción sin mapeo de volumenes) 
+# docker -H 192.168.100.2:2375 run -p 8080:80 nginx:alpine
+# 3.2) Opción CON mapeo de volumenes en modo detached
+# docker -H 192.168.100.2:2375 run -d -v /home/vagrant/docker:/usr/share/nginx/html -p 8080:80 nginx:alpine
+
+# 4) En el host ir a http://192.168.100.2:8080/ para er el resultado
+
+# El puerto 2375 está escrito a mano en el archivo docker.service
